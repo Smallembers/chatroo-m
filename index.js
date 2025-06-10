@@ -1,4 +1,3 @@
-
 const express = require('express');
 const app = express();
 const path = require('path');
@@ -67,10 +66,15 @@ io.on('connection', (socket) => {
   socket.emit('message history', messages);
 
   socket.on('new message', (data) => {
+    // Expect data: { message: string, tempId?: string }
     const msg = {
       username: socket.username,
-      message: data
+      message: data.message
     };
+
+    if (data.tempId) {
+      msg.tempId = data.tempId;
+    }
 
     messages.push(msg);
     if (messages.length > 20) {
