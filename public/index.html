@@ -1,28 +1,73 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Socket.IO Chat Example</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Chatroom</title>
+  <meta charset="UTF-8" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <ul class="pages">
-    <li class="chat page">
-      <div class="chatArea">
-        <ul class="messages"></ul>
-      </div>
-      <input class="inputMessage" placeholder="Type here..."/>
-    </li>
-    <li class="login page">
-      <div class="form">
-        <h3 class="title">What's your nickname?</h3>
-        <input class="usernameInput" type="text" maxlength="14" />
-      </div>
-    </li>
-  </ul>
+  <div class="chat">
+    <ul id="messages"></ul>
+    <form id="form" action="">
+      <input id="input" autocomplete="off" placeholder="Type a message..." /><button>Send</button>
+    </form>
+    <form id="uploadForm" enctype="multipart/form-data">
+      <input type="file" id="fileInput" name="file" accept="image/*" />
+      <button type="submit">Upload</button>
+    </form>
+  </div>
 
-  <script src="https://code.jquery.com/jquery-1.10.2.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/main.js"></script>
+  <script>
+    const socket = io();
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+    const messages = document.getElementById('messages');
+    const uploadForm = document.getElementById('uploadForm');
+    const fileInput = document.getElementById('fileInput');
+
+    let username = prompt("Choose a username:");
+    socket.emit('add user', username);
+
+    socket.on('chat message', data => {
+      const item = document.createElement('li');
+      if (data.isFile) {
+        const img = document.createElement('img');
+        img.src = data.message;
+        img.alt = "Uploaded Image";
+        img.style.maxWidth = '200px';
+        item.textContent = `${data.username}: `;
+        item.appendChild(img);
+      } else {
+        item.textContent = `${data.username}: ${data.message}`;
+      }
+      messages.appendChild(item);
+      window.scrollTo(0, document.body.scrollHeight);
+    });
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      if (input.value) {
+        socket.emit('new message', input.value);
+        input.value = '';
+      }
+    });
+
+    uploadForm.addEventListener('submit', e => {
+      e.preventDefault();
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      fetch('/upload', {
+        method: 'POST',
+        body: formData
+      }).then(() => {
+        fileInput.value = '';
+      }).catch(console.error);
+    });
+  </script>
 </body>
 </html>
