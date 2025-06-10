@@ -23,6 +23,12 @@ $(function () {
   let lastTypingTime;
   let $currentInput = $usernameInput.focus();
 
+  // Map to keep track of temp messages by their tempId
+  const tempMessages = new Map();
+
+  // Generate unique tempId for temp messages
+  const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
   const addParticipantsMessage = (data) => {
     let message = '';
     if (data.numUsers === 1) {
@@ -49,8 +55,18 @@ $(function () {
     message = cleanInput(message);
     if (message && connected) {
       $inputMessage.val('');
-      addChatMessage({ username, message });
-      socket.emit('new message', message);
+
+      // Create a tempId for this message
+      const tempId = generateTempId();
+
+      // Add temp message to UI immediately
+      addChatMessage({ username, message, tempId }, { fade: true, isTemp: true });
+
+      // Send the message along with tempId to the server
+      socket.emit('new message', { message, tempId });
+
+      socket.emit('stop typing');
+      typing = false;
     }
   };
 
@@ -59,7 +75,9 @@ $(function () {
     addMessageElement($el, options);
   };
 
+  // Modified addChatMessage to handle temp messages
   const addChatMessage = (data, options = {}) => {
+    const { tempId, username: dataUsername, message: dataMessage, typing } = data;
     const $typingMessages = getTypingMessages(data);
     if ($typingMessages.length !== 0) {
       options.fade = false;
@@ -67,16 +85,22 @@ $(function () {
     }
 
     const $usernameDiv = $('<span class="username"/>')
-      .text(data.username)
-      .css('color', getUsernameColor(data.username));
+      .text(dataUsername)
+      .css('color', getUsernameColor(dataUsername));
     const $messageBodyDiv = $('<span class="messageBody">')
-      .text(data.message);
+      .text(dataMessage);
 
-    const typingClass = data.typing ? 'typing' : '';
+    const typingClass = typing ? 'typing' : '';
     const $messageDiv = $('<li class="message"/>')
-      .data('username', data.username)
+      .data('username', dataUsername)
       .addClass(typingClass)
       .append($usernameDiv, $messageBodyDiv);
+
+    if (tempId) {
+      // Mark as temporary and store for replacement later
+      $messageDiv.attr('data-temp-id', tempId).addClass('temp-message');
+      tempMessages.set(tempId, $messageDiv);
+    }
 
     addMessageElement($messageDiv, options);
   };
@@ -152,8 +176,6 @@ $(function () {
     if (event.which === 13) {
       if (username) {
         sendMessage();
-        socket.emit('stop typing');
-        typing = false;
       } else {
         setUsername();
       }
@@ -179,8 +201,20 @@ $(function () {
     addParticipantsMessage(data);
   });
 
+  // Here is the key change: on 'new message' event, replace temp message if tempId matches
   socket.on('new message', (data) => {
-    addChatMessage(data);
+    const { tempId, username: msgUsername, message: msgText } = data;
+
+    if (tempId && tempMessages.has(tempId)) {
+      // Replace temp message with confirmed message
+      const $tempEl = tempMessages.get(tempId);
+      $tempEl.removeClass('temp-message').removeAttr('data-temp-id');
+      $tempEl.find('.messageBody').text(msgText);
+      tempMessages.delete(tempId);
+    } else {
+      // Just add message normally (for other users)
+      addChatMessage(data);
+    }
   });
 
   socket.on('user joined', (data) => {
@@ -217,7 +251,7 @@ $(function () {
     log('attempt to reconnect has failed');
   });
 
-  // NEW: Receive message history
+  // Receive message history
   socket.on('message history', (messages) => {
     messages.forEach((msg) => {
       addChatMessage(msg);
