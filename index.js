@@ -1,113 +1,127 @@
-// index.js (root)
 const express = require('express');
-const path = require('path');
-const fs = require('fs');
-const multer = require('multer');
-const http = require('http');
-const { Server } = require('socket.io');
-
 const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+const path = require('path');
+const http = require('http').createServer(app);
+const io = require('socket.io')(http);
+const multer = require('multer');
+const fs = require('fs');
 
-// Serve static client files
-app.use(express.static(path.join(__dirname, 'public')));
+const PORT = process.env.PORT || 3000;
 
-// Setup uploads directory
-const uploadDir = path.join(__dirname, 'public', 'uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
-
-// Multer config
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) =>
-    cb(null, Date.now() + '-' + file.originalname)
-});
-const upload = multer({ storage });
-
-// Track uploaded images
-let uploadedFiles = [];
-
-// Upload route
-app.post('/upload', upload.single('file'), (req, res) => {
-  const fileUrl = `/uploads/${req.file.filename}`;
-  uploadedFiles.push(fileUrl);
-
-  // Auto-delete oldest if more than 4
-  if (uploadedFiles.length > 4) {
-    const oldest = uploadedFiles.shift();
-    fs.unlink(path.join(__dirname, 'public', oldest), err => {
-      if (err) console.error('Deletion error:', err);
-    });
-  }
-
-  // Send to all clients
-  io.emit('chat message', {
-    username: 'Upload',
-    message: fileUrl,
-    isFile: true
-  });
-
-  res.json({ success: true, url: fileUrl });
+// Setup multer for uploads with 5MB limit
+const upload = multer({
+  dest: path.join(__dirname, 'uploads/'),
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
 });
 
-// Chatroom logic
-let messageHistory = [];
+// Keep last 20 messages in memory (including files)
+let messages = [];
 let numUsers = 0;
 
-io.on('connection', socket => {
-  console.log('User connected');
+app.use(express.static(path.join(__dirname, 'public')));
 
-  // Send recent history
-  messageHistory.slice(-20).forEach(msg => {
-    socket.emit('chat message', msg);
-  });
+// Ensure uploads folder exists
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
 
-  socket.on('add user', username => {
-    socket.username = username;
-    numUsers++;
-    socket.emit('login', { numUsers });
-    socket.broadcast.emit('user joined', {
-      username,
-      numUsers
-    });
-  });
+// Endpoint to upload files (max 5MB)
+app.post('/upload', upload.single('file'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded or file too large' });
+  }
 
-  socket.on('new message', message => {
-    const msgData = {
+  // Save file info as a message with a special flag
+  const fileMsg = {
+    username: req.body.username || 'Anonymous',
+    message: '',
+    file: {
+      filename: req.file.filename,
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size
+    }
+  };
+
+  messages.push(fileMsg);
+  if (messages.length > 20) {
+    // Remove oldest message and delete file if it's a file message
+    const removed = messages.shift();
+    if (removed.file) {
+      fs.unlink(path.join(uploadsDir, removed.file.filename), err => {
+        if (err) console.error('Error deleting file:', err);
+      });
+    }
+  }
+
+  io.emit('new message', fileMsg);
+  res.json({ success: true, file: fileMsg.file });
+});
+
+io.on('connection', (socket) => {
+  let addedUser = false;
+
+  // Send last 20 messages to new users
+  socket.emit('message history', messages);
+
+  socket.on('new message', (data) => {
+    const msg = {
       username: socket.username,
-      message,
-      isFile: false
+      message: data
     };
 
-    messageHistory.push(msgData);
-    if (messageHistory.length > 100) messageHistory.shift();
+    messages.push(msg);
+    if (messages.length > 20) {
+      const removed = messages.shift();
+      if (removed.file) {
+        fs.unlink(path.join(uploadsDir, removed.file.filename), err => {
+          if (err) console.error('Error deleting file:', err);
+        });
+      }
+    }
 
-    io.emit('chat message', msgData);
+    io.emit('new message', msg);
+  });
+
+  socket.on('add user', (username) => {
+    if (addedUser) return;
+
+    socket.username = username;
+    ++numUsers;
+    addedUser = true;
+    socket.emit('login', {
+      numUsers: numUsers
+    });
+    socket.broadcast.emit('user joined', {
+      username: socket.username,
+      numUsers: numUsers
+    });
   });
 
   socket.on('typing', () => {
-    socket.broadcast.emit('typing', { username: socket.username });
+    socket.broadcast.emit('typing', {
+      username: socket.username
+    });
   });
 
   socket.on('stop typing', () => {
-    socket.broadcast.emit('stop typing', { username: socket.username });
+    socket.broadcast.emit('stop typing', {
+      username: socket.username
+    });
   });
 
   socket.on('disconnect', () => {
-    if (socket.username) {
-      numUsers--;
+    if (addedUser) {
+      --numUsers;
       socket.broadcast.emit('user left', {
         username: socket.username,
-        numUsers
+        numUsers: numUsers
       });
     }
-    console.log('User disconnected');
   });
 });
 
-// Start server
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+http.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
 });
