@@ -77,19 +77,28 @@
       background-color: #121212;
       color: #eee;
     }
+
+    /* Blue theme - diagonal pulsing gradient */
     body.theme-blue {
-      /* Moving blue gradient background */
-      background: linear-gradient(270deg, #0077cc, #00aaff, #005f99, #00aaff);
-      background-size: 800% 800%;
-      animation: gradientMove 15s ease infinite;
+      background: linear-gradient(45deg, #005f99, #00aaff, #0077cc, #00aaff);
+      background-size: 400% 400%;
+      animation: pulseDiagonal 6s ease-in-out infinite;
       color: #fff;
     }
 
-    /* Gradient animation */
-    @keyframes gradientMove {
-      0% {background-position: 0% 50%;}
-      50% {background-position: 100% 50%;}
-      100% {background-position: 0% 50%;}
+    @keyframes pulseDiagonal {
+      0%, 100% {
+        background-position: 0% 0%;
+      }
+      50% {
+        background-position: 100% 100%;
+      }
+    }
+
+    /* Discord Midnight Blurple theme */
+    body.theme-blurple {
+      background: linear-gradient(135deg, #5865F2, #4752C4, #23272A);
+      color: #FFFFFF;
     }
   </style>
 </head>
@@ -101,6 +110,7 @@
     <button data-theme="theme-light">Light</button>
     <button data-theme="theme-dark">Dark</button>
     <button data-theme="theme-blue">Blue</button>
+    <button data-theme="theme-blurple">Midnight Blurple</button>
   </div>
 
   <!-- Hamburger menu -->
@@ -142,7 +152,7 @@
     // Theme buttons click
     sidebar.querySelectorAll('button').forEach(btn => {
       btn.addEventListener('click', () => {
-        body.classList.remove('theme-light', 'theme-dark', 'theme-blue');
+        body.classList.remove('theme-light', 'theme-dark', 'theme-blue', 'theme-blurple');
         body.classList.add(btn.dataset.theme);
         sidebar.classList.remove('open');
         menuBtn.classList.remove('open');
