@@ -10,6 +10,7 @@ const $chatPage = $('.chat.page');
 const $usersSidebar = $('#users-sidebar');
 const $usersList = $('#users-list');
 const $usersBtn = $('#users-btn');
+const $fileInput = $('#file-input'); // Add this input to your HTML for file upload
 
 let username;
 let connected = false;
@@ -19,6 +20,7 @@ const TYPING_TIMER_LENGTH = 400;
 
 const typingUsers = {};
 
+// --- USER SETUP ---
 const setUsername = () => {
   username = $usernameInput.val().trim();
   if (username) {
@@ -29,26 +31,70 @@ const setUsername = () => {
   }
 };
 
+// --- SEND TEXT MESSAGE ---
 const sendMessage = () => {
   let message = $inputMessage.val().trim();
   if (message && connected) {
     $inputMessage.val('');
-    addChatMessage({ username, message }); // Add immediately
+    addChatMessage({ username, message }); // Show immediately
     socket.emit('new message', message);
   }
 };
 
+// --- SEND FILE ---
+const sendFile = (file) => {
+  if (!file) return;
+
+  if (file.size > 5 * 1024 * 1024) {
+    alert('File exceeds 5MB limit.');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('username', username);
+
+  fetch('/upload', {
+    method: 'POST',
+    body: formData
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.error) {
+      alert('Upload failed: ' + data.error);
+    }
+    // The backend emits 'new message' with file data, so message will appear via socket event
+  })
+  .catch(() => {
+    alert('Upload failed due to network error.');
+  });
+};
+
+// --- LOG ---
 const log = (message) => {
   const $el = $('<li>').addClass('log').text(message);
   $messages.append($el);
   scrollToBottom();
 };
 
+// --- ADD CHAT MESSAGE ---
 const addChatMessage = (data, options = {}) => {
   const $usernameDiv = $('<span class="username"/>')
     .text(data.username)
     .css('color', getUsernameColor(data.username));
-  const $messageBodyDiv = $('<span class="messageBody">').text(data.message);
+
+  let $messageBodyDiv;
+  if (data.file) {
+    // If message contains file, show a download link with file name
+    $messageBodyDiv = $('<span class="messageBody">').append(
+      $('<a>')
+        .attr('href', `/uploads/${data.file.filename}`)
+        .attr('target', '_blank')
+        .text(data.file.originalname)
+    );
+  } else {
+    $messageBodyDiv = $('<span class="messageBody">').text(data.message);
+  }
 
   const $messageDiv = $('<li class="message"/>')
     .data('username', data.username)
@@ -62,10 +108,12 @@ const addChatMessage = (data, options = {}) => {
   scrollToBottom();
 };
 
+// --- SCROLL ---
 const scrollToBottom = () => {
   $messages[0].scrollTop = $messages[0].scrollHeight;
 };
 
+// --- TYPING ---
 const updateTyping = () => {
   if (connected) {
     if (!typing) {
@@ -84,6 +132,7 @@ const updateTyping = () => {
   }
 };
 
+// --- COLOR FOR USERNAME ---
 const getUsernameColor = (name) => {
   let hash = 7;
   for (let i = 0; i < name.length; i++) {
@@ -97,6 +146,7 @@ const getUsernameColor = (name) => {
   return colors[Math.abs(hash) % colors.length];
 };
 
+// --- UPDATE USERS LIST ---
 const updateUsersList = (users) => {
   $usersList.empty();
   users.forEach(user => {
@@ -105,6 +155,7 @@ const updateUsersList = (users) => {
   });
 };
 
+// --- TOGGLE USERS SIDEBAR ---
 const toggleUsersSidebar = () => {
   const isOpen = $usersSidebar.hasClass('open');
   $usersSidebar.toggleClass('open');
@@ -112,6 +163,7 @@ const toggleUsersSidebar = () => {
   $usersBtn.toggleClass('open');
 };
 
+// --- TYPING MESSAGES ---
 const addTypingMessage = (data) => {
   if (!typingUsers[data.username]) {
     const $typingMsg = $('<li class="message typing">')
@@ -128,11 +180,14 @@ const removeTypingMessage = (data) => {
   delete typingUsers[data.username];
 };
 
-// Events
+// --- EVENTS ---
+
+// Username enter
 $usernameInput.keydown(event => {
   if (event.which === 13) setUsername();
 });
 
+// Message enter
 $inputMessage.keydown(event => {
   if (event.which === 13) {
     sendMessage();
@@ -141,10 +196,26 @@ $inputMessage.keydown(event => {
   }
 });
 
+// Typing indicator
 $inputMessage.on('input', updateTyping);
+
+// Toggle user list sidebar
 $usersBtn.on('click', toggleUsersSidebar);
 
-// Socket events
+// File input change handler
+$fileInput.on('change', () => {
+  if (!connected) {
+    alert('Please set a username before uploading files.');
+    $fileInput.val('');
+    return;
+  }
+  const file = $fileInput[0].files[0];
+  sendFile(file);
+  $fileInput.val(''); // Clear after sending
+});
+
+// --- SOCKET EVENTS ---
+
 socket.on('login', (data) => {
   connected = true;
   log(`Welcome to Socket.IO Chat – ${data.numUsers} users online`);
@@ -162,7 +233,8 @@ socket.on('user left', (data) => {
 });
 
 socket.on('new message', (data) => {
-  if (data.username !== username) {
+  // Don't double-add messages sent by self via socket if already added locally
+  if (data.username !== username || data.file) {
     addChatMessage(data);
   }
 });
@@ -175,7 +247,7 @@ socket.on('stop typing', (data) => {
   removeTypingMessage(data);
 });
 
-// NEW: Load last 20 messages on connect
+// Load recent messages on connect
 socket.on('recent messages', (messages) => {
   messages.forEach(msg => addChatMessage(msg, { prepend: false }));
 });
