@@ -128,6 +128,38 @@ const removeTypingMessage = (data) => {
   delete typingUsers[data.username];
 };
 
+// THEME SWITCHER INTEGRATION
+
+$(function() {
+  // Apply saved theme on load
+  const savedTheme = localStorage.getItem('chat-theme');
+  if (savedTheme) {
+    $('body').removeClass(function(index, className) {
+      return (className.match(/(^|\s)theme-\S+/g) || []).join(' ');
+    });
+    $('body').addClass('theme-' + savedTheme);
+    $(`#theme-menu input[value="${savedTheme}"]`).prop('checked', true);
+  }
+
+  // Toggle theme menu panel when hamburger clicked
+  $('#theme-btn').on('click', () => {
+    const isOpen = $('#theme-menu').toggleClass('open').hasClass('open');
+    $('#theme-btn').attr('aria-expanded', isOpen);
+  });
+
+  // Listen for theme radio changes
+  $('#theme-menu input[name="theme"]').on('change', function() {
+    if (this.checked) {
+      const theme = $(this).val();
+      $('body').removeClass(function(index, className) {
+        return (className.match(/(^|\s)theme-\S+/g) || []).join(' ');
+      });
+      $('body').addClass('theme-' + theme);
+      localStorage.setItem('chat-theme', theme);
+    }
+  });
+});
+
 // Events
 $usernameInput.keydown(event => {
   if (event.which === 13) setUsername();
