@@ -17,6 +17,8 @@ let typing = false;
 let lastTypingTime;
 const TYPING_TIMER_LENGTH = 400;
 
+const typingUsers = {};
+
 const setUsername = () => {
   username = $usernameInput.val().trim();
   if (username) {
@@ -110,6 +112,23 @@ const toggleUsersSidebar = () => {
   $usersBtn.toggleClass('open');
 };
 
+const addTypingMessage = (data) => {
+  if (!typingUsers[data.username]) {
+    const $typingMsg = $('<li class="message typing">')
+      .text(`${data.username} is typing...`)
+      .attr('id', `typing-${data.username}`);
+    $messages.append($typingMsg);
+    typingUsers[data.username] = true;
+    scrollToBottom();
+  }
+};
+
+const removeTypingMessage = (data) => {
+  $(`#typing-${data.username}`).remove();
+  delete typingUsers[data.username];
+};
+
+// Events
 $usernameInput.keydown(event => {
   if (event.which === 13) setUsername();
 });
@@ -126,7 +145,6 @@ $inputMessage.on('input', updateTyping);
 $usersBtn.on('click', toggleUsersSidebar);
 
 // Socket events
-
 socket.on('login', (data) => {
   connected = true;
   log(`Welcome to Socket.IO Chat – ${data.numUsers} users online`);
@@ -157,20 +175,7 @@ socket.on('stop typing', (data) => {
   removeTypingMessage(data);
 });
 
-const typingUsers = {};
-
-const addTypingMessage = (data) => {
-  if (!typingUsers[data.username]) {
-    const $typingMsg = $('<li class="message typing">')
-      .text(`${data.username} is typing...`)
-      .attr('id', `typing-${data.username}`);
-    $messages.append($typingMsg);
-    typingUsers[data.username] = true;
-    scrollToBottom();
-  }
-};
-
-const removeTypingMessage = (data) => {
-  $(`#typing-${data.username}`).remove();
-  delete typingUsers[data.username];
-};
+// NEW: Load last 20 messages on connect
+socket.on('recent messages', (messages) => {
+  messages.forEach(msg => addChatMessage(msg, { prepend: false }));
+});
