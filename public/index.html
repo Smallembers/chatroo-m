@@ -95,10 +95,21 @@
       }
     }
 
-    /* Discord Midnight Blurple theme */
+    /* Discord Midnight Blurple animated */
     body.theme-blurple {
-      background: linear-gradient(135deg, #5865F2, #4752C4, #23272A);
+      background: linear-gradient(135deg, #5865F2, #4752C4, #23272A, #5865F2);
+      background-size: 400% 400%;
+      animation: blurplePulse 8s ease-in-out infinite;
       color: #FFFFFF;
+    }
+
+    @keyframes blurplePulse {
+      0%, 100% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
     }
   </style>
 </head>
