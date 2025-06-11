@@ -44,6 +44,7 @@
       box-sizing: border-box;
       transition: left 0.3s ease;
       z-index: 1000;
+      overflow-y: auto;
     }
     #sidebar.open {
       left: 0;
@@ -111,17 +112,43 @@
         background-position: 100% 50%;
       }
     }
+
+    /* New Discord inspired themes */
+
+    body.theme-discord-dark {
+      background-color: #18191c;
+      color: #dcddde;
+    }
+
+    body.theme-notblack {
+      background-color: #2f3136;
+      color: #b9bbbe;
+    }
+
+    body.theme-ghostwhite {
+      background-color: #f2f3f5;
+      color: #4f5660;
+    }
+
+    body.theme-dimmed-midnight {
+      background: linear-gradient(135deg, #3b3f55, #282c3a, #1e1f28);
+      color: #b0b3c6;
+    }
   </style>
 </head>
 <body class="theme-light">
 
   <!-- Sidebar menu -->
-  <div id="sidebar">
+  <div id="sidebar" aria-label="Theme selection sidebar" role="navigation">
     <h2>Choose Theme</h2>
     <button data-theme="theme-light">Light</button>
     <button data-theme="theme-dark">Dark</button>
     <button data-theme="theme-blue">Blue</button>
     <button data-theme="theme-blurple">Midnight Blurple</button>
+    <button data-theme="theme-discord-dark">Discord Dark</button>
+    <button data-theme="theme-notblack">Not Quite Black</button>
+    <button data-theme="theme-ghostwhite">Ghost White</button>
+    <button data-theme="theme-dimmed-midnight">Dimmed Midnight</button>
   </div>
 
   <!-- Hamburger menu -->
@@ -163,7 +190,10 @@
     // Theme buttons click
     sidebar.querySelectorAll('button').forEach(btn => {
       btn.addEventListener('click', () => {
-        body.classList.remove('theme-light', 'theme-dark', 'theme-blue', 'theme-blurple');
+        body.classList.remove(
+          'theme-light', 'theme-dark', 'theme-blue', 'theme-blurple',
+          'theme-discord-dark', 'theme-notblack', 'theme-ghostwhite', 'theme-dimmed-midnight'
+        );
         body.classList.add(btn.dataset.theme);
         sidebar.classList.remove('open');
         menuBtn.classList.remove('open');
