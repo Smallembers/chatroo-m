@@ -1,89 +1,147 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Chatroom</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Socket.IO Chat with Users Sidebar</title>
   <style>
-    /* --- Existing styles --- */
-    #menu-btn {
-      position: fixed;
-      top: 15px;
-      left: 15px;
-      width: 30px;
-      height: 25px;
-      cursor: pointer;
-      z-index: 1001;
-      transition: opacity 0.3s ease;
-    }
-    #menu-btn div {
-      background-color: #333;
-      height: 4px;
-      margin: 5px 0;
-      border-radius: 2px;
-      transition: 0.3s;
-    }
-    #menu-btn.open {
-      opacity: 0;
-      pointer-events: none;
-    }
-    #sidebar {
-      position: fixed;
-      top: 0;
-      left: -250px; /* hidden */
-      width: 250px;
-      height: 100vh;
-      background: #222;
-      color: white;
-      padding: 20px;
-      box-sizing: border-box;
-      transition: left 0.3s ease;
-      z-index: 1000;
-      overflow-y: auto;
-    }
-    #sidebar.open {
-      left: 0;
-    }
-    #sidebar h2 {
-      margin-top: 0;
-    }
-    #sidebar button {
-      display: block;
-      width: 100%;
-      margin: 10px 0;
-      padding: 10px;
-      font-size: 16px;
-      background: #444;
-      border: none;
-      color: white;
-      cursor: pointer;
-      border-radius: 5px;
-      transition: background 0.2s;
-    }
-    #sidebar button:hover {
-      background: #666;
+    /* Basic Reset and body */
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #7289da, #99aab5);
+      color: #fff;
+      overflow-x: hidden;
     }
 
-    /* Right sidebar for users */
-    #users-sidebar {
-      position: fixed;
-      top: 0;
-      right: -300px; /* hidden offscreen */
-      width: 300px;
+    /* Chat container */
+    .chat.page {
+      display: flex;
+      flex-direction: column;
       height: 100vh;
-      background: #2c2f33;
-      color: white;
       padding: 20px;
       box-sizing: border-box;
-      transition: right 0.3s ease;
-      z-index: 1000;
-      overflow-y: auto;
+      max-width: 700px;
+      margin: 0 auto;
     }
-    #users-sidebar.open {
+
+    /* Messages */
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      list-style: none;
+      padding: 10px;
+      margin: 0 0 15px 0;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 8px;
+      scrollbar-width: thin;
+      scrollbar-color: #5865f2 transparent;
+    }
+    .messages::-webkit-scrollbar {
+      width: 8px;
+    }
+    .messages::-webkit-scrollbar-thumb {
+      background-color: #5865f2;
+      border-radius: 4px;
+    }
+
+    /* Message styling */
+    .message {
+      margin-bottom: 10px;
+      padding: 5px 10px;
+      border-radius: 6px;
+      background-color: rgba(88, 101, 242, 0.15);
+      word-wrap: break-word;
+      user-select: text;
+      transition: background-color 0.3s ease;
+    }
+    .message.typing {
+      font-style: italic;
+      color: #aaa;
+      background: none;
+    }
+    .message .username {
+      font-weight: 700;
+      margin-right: 8px;
+    }
+    .message.log {
+      color: #ccc;
+      font-style: italic;
+      text-align: center;
+      background: none;
+      padding: 0;
+      margin: 8px 0;
+    }
+    .temp-message {
+      opacity: 0.7;
+      font-style: italic;
+    }
+
+    /* Input area */
+    .inputMessage {
+      width: 100%;
+      padding: 12px 15px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      outline: none;
+      box-sizing: border-box;
+      color: #fff;
+      background-color: rgba(0, 0, 0, 0.3);
+      transition: background-color 0.3s ease;
+    }
+    .inputMessage::placeholder {
+      color: #bbb;
+    }
+    .inputMessage:focus {
+      background-color: rgba(88, 101, 242, 0.35);
+    }
+
+    /* Login page */
+    .login.page {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      flex-direction: column;
+      background: linear-gradient(135deg, #7289da, #99aab5);
+    }
+    .usernameInput {
+      padding: 12px 15px;
+      font-size: 18px;
+      border-radius: 8px;
+      border: none;
+      outline: none;
+      width: 280px;
+      max-width: 90vw;
+      margin-bottom: 15px;
+    }
+
+    /* Users sidebar */
+    .users-sidebar {
+      position: fixed;
+      top: 0;
+      right: -280px; /* hidden by default */
+      width: 280px;
+      height: 100vh;
+      background-color: #2c2f33; /* Discord dark bg */
+      color: white;
+      box-shadow: -2px 0 8px rgba(0,0,0,0.7);
+      padding: 15px;
+      transition: right 0.3s ease;
+      overflow-y: auto;
+      z-index: 1000;
+    }
+    .users-sidebar.open {
       right: 0;
     }
-    #users-sidebar h2 {
+    .users-sidebar h3 {
       margin-top: 0;
+      font-weight: 600;
+      font-size: 1.25rem;
+      margin-bottom: 10px;
+      border-bottom: 1px solid #40444b;
+      padding-bottom: 8px;
     }
     #users-list {
       list-style: none;
@@ -91,168 +149,73 @@
       margin: 0;
     }
     #users-list li {
-      padding: 8px 5px;
-      border-bottom: 1px solid #444;
+      padding: 8px 10px;
+      border-radius: 4px;
+      margin-bottom: 6px;
+      background-color: #23272a;
+      font-weight: 500;
+      user-select: none;
+      transition: background-color 0.2s ease;
+    }
+    #users-list li:hover {
+      background-color: #40444b;
     }
 
-    /* Users toggle button top-right */
+    /* Users button styles */
     #users-btn {
       position: fixed;
       top: 15px;
       right: 15px;
-      width: 30px;
-      height: 25px;
+      width: 40px;
+      height: 40px;
       cursor: pointer;
-      z-index: 1001;
-      background-color: #333;
-      border-radius: 4px;
+      z-index: 1100;
+      background: #5865F2; /* Discord blurple */
+      border: none;
+      border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
-      font-weight: bold;
-      font-family: sans-serif;
-      user-select: none;
-      transition: opacity 0.3s ease;
+      box-shadow: 0 2px 8px rgba(88, 101, 242, 0.5);
+      transition: background-color 0.3s ease;
+    }
+    #users-btn:hover {
+      background: #4752c4;
     }
     #users-btn.open {
-      opacity: 0;
-      pointer-events: none;
+      opacity: 0.7;
     }
-
-    /* Other theme and notification styles here (omitted for brevity) */
-
   </style>
 </head>
-<body class="theme-light">
-
-  <!-- Sidebar menu (left) -->
-  <div id="sidebar" aria-label="Theme selection sidebar" role="navigation">
-    <h2>Choose Theme</h2>
-    <button data-theme="theme-light">Light</button>
-    <button data-theme="theme-dark">Dark</button>
-    <button data-theme="theme-blue">Blue</button>
-    <button data-theme="theme-blurple">Midnight Blurple</button>
-    <button data-theme="theme-discord-dark">Discord Dark</button>
-    <button data-theme="theme-notblack">Not Quite Black</button>
-    <button data-theme="theme-ghostwhite">Ghost White</button>
-    <button data-theme="theme-dimmed-midnight">Dimmed Midnight</button>
+<body>
+  <!-- Login Page -->
+  <div class="login page">
+    <input class="usernameInput" type="text" maxlength="14" placeholder="Enter username" autofocus />
   </div>
 
-  <!-- Hamburger menu left -->
-  <div id="menu-btn" aria-label="Open menu" role="button" tabindex="0">
-    <div></div>
-    <div></div>
-    <div></div>
+  <!-- Chat Page -->
+  <div class="chat page" style="display:none;">
+    <ul class="messages"></ul>
+    <input class="inputMessage" placeholder="Type here..." autocomplete="off" />
   </div>
 
-  <!-- Users toggle button right -->
-  <div id="users-btn" aria-label="Show users" role="button" tabindex="0">👥</div>
-
-  <!-- Users sidebar (right) -->
-  <div id="users-sidebar" aria-label="Current users sidebar" role="complementary">
-    <h2>Current Users</h2>
-    <ul id="users-list">
-      <!-- Usernames will be inserted here dynamically -->
-    </ul>
+  <!-- Users sidebar -->
+  <div id="users-sidebar" class="users-sidebar" aria-label="Current users online">
+    <h3>Users Online</h3>
+    <ul id="users-list"></ul>
   </div>
 
-  <ul class="pages">
-    <li class="chat page">
-      <div class="chatArea">
-        <ul class="messages"></ul>
-      </div>
-      <input class="inputMessage" placeholder="Type here..." />
-    </li>
-    <li class="login page">
-      <div class="form">
-        <h3 class="title">What's your nickname?</h3>
-        <input class="usernameInput" type="text" maxlength="14" />
-      </div>
-    </li>
-  </ul>
+  <!-- Users toggle button -->
+  <button id="users-btn" aria-label="Toggle users sidebar" title="Toggle users" type="button" aria-expanded="false">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M7 21v-2a4 4 0 0 1 3-3.87" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  </button>
 
-  <script src="https://code.jquery.com/jquery-1.10.2.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
-  <script src="/main.js"></script>
-  <script>
-    const menuBtn = document.getElementById('menu-btn');
-    const sidebar = document.getElementById('sidebar');
-    const body = document.body;
-
-    const usersBtn = document.getElementById('users-btn');
-    const usersSidebar = document.getElementById('users-sidebar');
-    const usersList = document.getElementById('users-list');
-
-    // Toggle theme sidebar
-    menuBtn.addEventListener('click', () => {
-      sidebar.classList.toggle('open');
-      menuBtn.classList.toggle('open');
-      // Hide users sidebar if open
-      if (usersSidebar.classList.contains('open')) {
-        usersSidebar.classList.remove('open');
-        usersBtn.classList.remove('open');
-      }
-    });
-
-    // Toggle users sidebar
-    usersBtn.addEventListener('click', () => {
-      usersSidebar.classList.toggle('open');
-      usersBtn.classList.toggle('open');
-      // Hide theme sidebar if open
-      if (sidebar.classList.contains('open')) {
-        sidebar.classList.remove('open');
-        menuBtn.classList.remove('open');
-      }
-    });
-
-    // Theme selection buttons
-    sidebar.querySelectorAll('button').forEach(btn => {
-      btn.addEventListener('click', () => {
-        body.classList.remove(
-          'theme-light', 'theme-dark', 'theme-blue', 'theme-blurple',
-          'theme-discord-dark', 'theme-notblack', 'theme-ghostwhite', 'theme-dimmed-midnight'
-        );
-        body.classList.add(btn.dataset.theme);
-        sidebar.classList.remove('open');
-        menuBtn.classList.remove('open');
-      });
-    });
-
-    // Close sidebars on clicking outside
-    document.addEventListener('click', (e) => {
-      if (!sidebar.contains(e.target) && !menuBtn.contains(e.target) &&
-          !usersSidebar.contains(e.target) && !usersBtn.contains(e.target)) {
-        sidebar.classList.remove('open');
-        menuBtn.classList.remove('open');
-        usersSidebar.classList.remove('open');
-        usersBtn.classList.remove('open');
-      }
-    });
-
-    // Example: function to update users list dynamically
-    function updateUsersList(users) {
-      usersList.innerHTML = '';
-      users.forEach(user => {
-        const li = document.createElement('li');
-        li.textContent = user;
-        usersList.appendChild(li);
-      });
-    }
-
-    // Example usage: replace with your actual user list from socket.io or other backend
-    // Just for demo, we'll simulate a users list update every 5 seconds
-    const demoUsers = [
-      ['Alice', 'Bob', 'Charlie'],
-      ['Alice', 'Bob', 'Charlie', 'David'],
-      ['Alice', 'Bob'],
-      ['Alice', 'Bob', 'Charlie', 'David', 'Eve']
-    ];
-    let index = 0;
-    setInterval(() => {
-      updateUsersList(demoUsers[index]);
-      index = (index + 1) % demoUsers.length;
-    }, 5000);
-  </script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="main.js"></script>
 </body>
 </html>
