@@ -33,15 +33,10 @@ const setUsername = () => {
 
 // Send message
 const sendMessage = () => {
-  let message = $inputMessage.val();
-  message = message.trim();
+  let message = $inputMessage.val().trim();
 
   if (message && connected) {
     $inputMessage.val('');
-    addChatMessage({
-      username,
-      message
-    });
     socket.emit('new message', message);
   }
 };
