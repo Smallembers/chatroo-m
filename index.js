@@ -16,7 +16,7 @@ const upload = multer({
 
 // Keep last 20 messages in memory (including files)
 let messages = [];
-let numUsers = 0;
+const users = new Set();
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -32,7 +32,6 @@ app.post('/upload', upload.single('file'), (req, res) => {
     return res.status(400).json({ error: 'No file uploaded or file too large' });
   }
 
-  // Save file info as a message with a special flag
   const fileMsg = {
     username: req.body.username || 'Anonymous',
     message: '',
@@ -46,7 +45,6 @@ app.post('/upload', upload.single('file'), (req, res) => {
 
   messages.push(fileMsg);
   if (messages.length > 20) {
-    // Remove oldest message and delete file if it's a file message
     const removed = messages.shift();
     if (removed.file) {
       fs.unlink(path.join(uploadsDir, removed.file.filename), err => {
@@ -65,8 +63,15 @@ io.on('connection', (socket) => {
   // Send last 20 messages to new users
   socket.emit('message history', messages);
 
+  // Send current user list and count on connection
+  socket.emit('login', {
+    numUsers: users.size,
+    users: Array.from(users)
+  });
+
   socket.on('new message', (data) => {
-    // Expect data: { message: string, tempId?: string }
+    if (!addedUser) return;
+
     const msg = {
       username: socket.username,
       message: data.message
@@ -93,24 +98,30 @@ io.on('connection', (socket) => {
     if (addedUser) return;
 
     socket.username = username;
-    ++numUsers;
+    users.add(username);
     addedUser = true;
+
     socket.emit('login', {
-      numUsers: numUsers
+      numUsers: users.size,
+      users: Array.from(users)
     });
+
     socket.broadcast.emit('user joined', {
-      username: socket.username,
-      numUsers: numUsers
+      username: username,
+      numUsers: users.size,
+      users: Array.from(users)
     });
   });
 
   socket.on('typing', () => {
+    if (!addedUser) return;
     socket.broadcast.emit('typing', {
       username: socket.username
     });
   });
 
   socket.on('stop typing', () => {
+    if (!addedUser) return;
     socket.broadcast.emit('stop typing', {
       username: socket.username
     });
@@ -118,10 +129,12 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     if (addedUser) {
-      --numUsers;
+      users.delete(socket.username);
+
       socket.broadcast.emit('user left', {
         username: socket.username,
-        numUsers: numUsers
+        numUsers: users.size,
+        users: Array.from(users)
       });
     }
   });
