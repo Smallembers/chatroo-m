@@ -370,4 +370,33 @@
   <script src="main.js"></script>
   <script>
     // Theme menu toggle
-    const themeBtn =
+    const themeBtn = document.getElementById('theme-btn');
+    const themeMenu = document.getElementById('theme-menu');
+    themeBtn.addEventListener('click', () => {
+      const isOpen = themeMenu.classList.toggle('open');
+      themeBtn.setAttribute('aria-expanded', isOpen);
+    });
+
+    // Theme switching logic
+    const themeRadios = document.querySelectorAll('#theme-menu input[name="theme"]');
+    themeRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (radio.checked) {
+          document.body.className = 'theme-' + radio.value;
+          // Optionally store preference in localStorage
+          localStorage.setItem('chat-theme', radio.value);
+        }
+      });
+    });
+
+    // Load saved theme on page load
+    const savedTheme = localStorage.getItem('chat-theme');
+    if (savedTheme) {
+      document.body.className = 'theme-' + savedTheme;
+      // Reflect radio checked
+      const radio = document.querySelector(`#theme-menu input[value="${savedTheme}"]`);
+      if (radio) radio.checked = true;
+    }
+  </script>
+</body>
+</html>
