@@ -134,6 +134,72 @@
       background: linear-gradient(135deg, #3b3f55, #282c3a, #1e1f28);
       color: #b0b3c6;
     }
+
+    /* Notifications contrast for each theme */
+
+    body.theme-light .notification {
+      color: #333;
+      background: #eee;
+      border-radius: 4px;
+      padding: 6px 10px;
+      margin: 5px 0;
+    }
+
+    body.theme-dark .notification {
+      color: #ddd;
+      background: #2a2a2a;
+      border-radius: 4px;
+      padding: 6px 10px;
+      margin: 5px 0;
+    }
+
+    body.theme-blue .notification {
+      color: #d0eaff;
+      background: rgba(0, 110, 180, 0.8);
+      border-radius: 4px;
+      padding: 6px 10px;
+      margin: 5px 0;
+    }
+
+    body.theme-blurple .notification {
+      color: #e0e3ff;
+      background: rgba(88, 101, 242, 0.8);
+      border-radius: 4px;
+      padding: 6px 10px;
+      margin: 5px 0;
+    }
+
+    body.theme-discord-dark .notification {
+      color: #d1d3d8;
+      background: #2f3136;
+      border-radius: 4px;
+      padding: 6px 10px;
+      margin: 5px 0;
+    }
+
+    body.theme-notblack .notification {
+      color: #b9bbbe;
+      background: #232428;
+      border-radius: 4px;
+      padding: 6px 10px;
+      margin: 5px 0;
+    }
+
+    body.theme-ghostwhite .notification {
+      color: #3a3e47;
+      background: #dce1e6;
+      border-radius: 4px;
+      padding: 6px 10px;
+      margin: 5px 0;
+    }
+
+    body.theme-dimmed-midnight .notification {
+      color: #a1a5b8;
+      background: rgba(50, 52, 68, 0.7);
+      border-radius: 4px;
+      padding: 6px 10px;
+      margin: 5px 0;
+    }
   </style>
 </head>
 <body class="theme-light">
@@ -162,6 +228,8 @@
     <li class="chat page">
       <div class="chatArea">
         <ul class="messages"></ul>
+        <!-- Example notification -->
+        <!-- <div class="notification">User John has joined the chat!</div> -->
       </div>
       <input class="inputMessage" placeholder="Type here..." />
     </li>
