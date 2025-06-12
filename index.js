@@ -1,71 +1,63 @@
 const express = require('express');
-const app = express();
+const http = require('http');
+const { Server } = require('socket.io');
 const path = require('path');
-const http = require('http').createServer(app);
-const io = require('socket.io')(http);
 const multer = require('multer');
 const fs = require('fs');
 
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
 const PORT = process.env.PORT || 3000;
 
-// Setup multer for uploads with 5MB limit
-const upload = multer({
-  dest: path.join(__dirname, 'uploads/'),
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
-});
-
-// Ensure uploads folder exists
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
-}
-
-// Store last 20 messages (including uploaded files)
-let messages = [];
+// Track active users
 const users = new Set();
 
+// Ensure uploads directory exists
+const UPLOAD_DIR = path.join(__dirname, 'public/uploads');
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
+
+// Multer setup for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
+
+// Serve static files
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(UPLOAD_DIR));
 
 // File upload endpoint
 app.post('/upload', upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded or file too large' });
+  if (!req.file || !req.body.username) {
+    return res.status(400).json({ error: 'Missing file or username' });
   }
 
-  const fileMsg = {
-    username: req.body.username || 'Anonymous',
-    message: '',
+  const fileData = {
+    username: req.body.username,
     file: {
-      filename: req.file.filename,
       originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size
+      filename: req.file.filename
     }
   };
 
-  messages.push(fileMsg);
-  if (messages.length > 20) {
-    const removed = messages.shift();
-    if (removed.file) {
-      fs.unlink(path.join(uploadsDir, removed.file.filename), err => {
-        if (err) console.error('Error deleting old file:', err);
-      });
-    }
-  }
-
-  io.emit('new message', fileMsg);
-  res.json({ success: true, file: fileMsg.file });
+  io.emit('new message', fileData); // Send file as a chat message
+  res.json({ success: true });
 });
 
+// Socket.IO events
 io.on('connection', (socket) => {
   let addedUser = false;
 
-  // Send last 20 messages to new user
-  socket.emit('recent messages', messages);
-
   socket.on('add user', (username) => {
     if (addedUser) return;
-
     socket.username = username;
     users.add(username);
     addedUser = true;
@@ -76,56 +68,44 @@ io.on('connection', (socket) => {
     });
 
     socket.broadcast.emit('user joined', {
-      username: username,
-      numUsers: users.size,
+      username,
       users: Array.from(users)
     });
   });
 
-  socket.on('new message', (text) => {
-    if (!addedUser || typeof text !== 'string') return;
-
-    const msg = {
-      username: socket.username,
-      message: text
-    };
-
-    messages.push(msg);
-    if (messages.length > 20) {
-      const removed = messages.shift();
-      if (removed.file) {
-        fs.unlink(path.join(uploadsDir, removed.file.filename), err => {
-          if (err) console.error('Error deleting old file:', err);
-        });
-      }
+  socket.on('new message', (message) => {
+    if (socket.username) {
+      io.emit('new message', {
+        username: socket.username,
+        message
+      });
     }
-
-    io.emit('new message', msg);
   });
 
   socket.on('typing', () => {
-    if (!addedUser) return;
-    socket.broadcast.emit('typing', { username: socket.username });
+    socket.broadcast.emit('typing', {
+      username: socket.username
+    });
   });
 
   socket.on('stop typing', () => {
-    if (!addedUser) return;
-    socket.broadcast.emit('stop typing', { username: socket.username });
+    socket.broadcast.emit('stop typing', {
+      username: socket.username
+    });
   });
 
   socket.on('disconnect', () => {
     if (addedUser) {
       users.delete(socket.username);
-
       socket.broadcast.emit('user left', {
         username: socket.username,
-        numUsers: users.size,
         users: Array.from(users)
       });
     }
   });
 });
 
-http.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+// Start the server
+server.listen(PORT, () => {
+  console.log(`Server is running at http://localhost:${PORT}`);
 });
