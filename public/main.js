@@ -10,6 +10,8 @@ const $chatPage = $('.chat.page');
 const $usersSidebar = $('#users-sidebar');
 const $usersList = $('#users-list');
 const $usersBtn = $('#users-btn');
+const $fileInput = $('#fileInput');
+const $uploadBtn = $('#uploadBtn');
 
 let username;
 let connected = false;
@@ -33,7 +35,7 @@ const sendMessage = () => {
   let message = $inputMessage.val().trim();
   if (message && connected) {
     $inputMessage.val('');
-    addChatMessage({ username, message }); // Add immediately
+    addChatMessage({ username, message });
     socket.emit('new message', message);
   }
 };
@@ -48,7 +50,14 @@ const addChatMessage = (data, options = {}) => {
   const $usernameDiv = $('<span class="username"/>')
     .text(data.username)
     .css('color', getUsernameColor(data.username));
-  const $messageBodyDiv = $('<span class="messageBody">').text(data.message);
+
+  let $messageBodyDiv;
+  if (data.file) {
+    const fileLink = $('<a target="_blank">').attr('href', data.file.url).text(data.file.name);
+    $messageBodyDiv = $('<span class="messageBody">').append('Uploaded file: ', fileLink);
+  } else {
+    $messageBodyDiv = $('<span class="messageBody">').text(data.message);
+  }
 
   const $messageDiv = $('<li class="message"/>')
     .data('username', data.username)
@@ -144,6 +153,22 @@ $inputMessage.keydown(event => {
 $inputMessage.on('input', updateTyping);
 $usersBtn.on('click', toggleUsersSidebar);
 
+$uploadBtn.on('click', () => {
+  const file = $fileInput[0].files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    socket.emit('file upload', {
+      username,
+      name: file.name,
+      type: file.type,
+      data: reader.result
+    });
+  };
+  reader.readAsDataURL(file);
+});
+
 // Socket events
 socket.on('login', (data) => {
   connected = true;
@@ -175,7 +200,10 @@ socket.on('stop typing', (data) => {
   removeTypingMessage(data);
 });
 
-// NEW: Load last 20 messages on connect
 socket.on('recent messages', (messages) => {
   messages.forEach(msg => addChatMessage(msg, { prepend: false }));
+});
+
+socket.on('file uploaded', (data) => {
+  addChatMessage({ username: data.username, file: { name: data.name, url: data.url } });
 });
