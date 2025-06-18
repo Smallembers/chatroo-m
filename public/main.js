@@ -53,17 +53,19 @@ const addChatMessage = (data, options = {}) => {
 
   let $messageBodyDiv;
   if (data.file) {
-    const fileLink = $('<a target="_blank">')
-      .attr('href', `/uploads/${data.file.filename}`)
-      .text(`📎 ${data.file.originalname} (${(data.file.size / 1024).toFixed(1)} KB)`);
-    $messageBodyDiv = $('<span class="messageBody">').append('Uploaded file: ', fileLink);
+    const fileBlob = new Blob([new Uint8Array(data.file.data)], { type: data.file.type });
+    const fileUrl = URL.createObjectURL(fileBlob);
+    const fileLink = $('<a target="_blank" download>')
+      .attr('href', fileUrl)
+      .text(data.file.name);
+    $messageBodyDiv = $('<span class="messageBody">').append(' uploaded ', fileLink);
   } else {
     $messageBodyDiv = $('<span class="messageBody">').text(data.message);
   }
 
   const $messageDiv = $('<li class="message"/>')
     .data('username', data.username)
-    .append($usernameDiv, ': ', $messageBodyDiv);
+    .append($usernameDiv, $messageBodyDiv);
 
   if (options.prepend) {
     $messages.prepend($messageDiv);
@@ -139,7 +141,7 @@ const removeTypingMessage = (data) => {
   delete typingUsers[data.username];
 };
 
-// Events
+// Event Listeners
 $usernameInput.keydown(event => {
   if (event.which === 13) setUsername();
 });
@@ -155,34 +157,29 @@ $inputMessage.keydown(event => {
 $inputMessage.on('input', updateTyping);
 $usersBtn.on('click', toggleUsersSidebar);
 
+// File upload handling using ArrayBuffer
 $uploadBtn.on('click', () => {
   const file = $fileInput[0].files[0];
-  if (!file || !connected) return;
+  if (!file) return alert('Please choose a file.');
 
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('username', username);
-
-  fetch('/upload', {
-    method: 'POST',
-    body: formData
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        // file message will be broadcast by the server via 'new message'
-        $fileInput.val(''); // reset input
-      } else {
-        alert(data.error || 'Upload failed');
-      }
-    })
-    .catch(() => alert('Upload error'));
+  const reader = new FileReader();
+  reader.onload = () => {
+    const arrayBuffer = reader.result;
+    socket.emit('file upload', {
+      username,
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      data: Array.from(new Uint8Array(arrayBuffer))
+    });
+  };
+  reader.readAsArrayBuffer(file);
 });
 
-// Socket events
+// Socket Events
 socket.on('login', (data) => {
   connected = true;
-  log(`Welcome to Socket.IO Chat – ${data.numUsers} users online`);
+  log(`Welcome to Chatroo-m – ${data.numUsers} users online`);
   updateUsersList(data.users || []);
 });
 
@@ -197,7 +194,9 @@ socket.on('user left', (data) => {
 });
 
 socket.on('new message', (data) => {
-  addChatMessage(data);
+  if (data.username !== username) {
+    addChatMessage(data);
+  }
 });
 
 socket.on('typing', (data) => {
@@ -210,4 +209,8 @@ socket.on('stop typing', (data) => {
 
 socket.on('recent messages', (messages) => {
   messages.forEach(msg => addChatMessage(msg, { prepend: false }));
+});
+
+socket.on('file uploaded', (data) => {
+  addChatMessage({ username: data.username, file: data.file });
 });
