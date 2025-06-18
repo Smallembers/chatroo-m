@@ -53,7 +53,9 @@ const addChatMessage = (data, options = {}) => {
 
   let $messageBodyDiv;
   if (data.file) {
-    const fileLink = $('<a target="_blank">').attr('href', data.file.url).text(data.file.name);
+    const fileLink = $('<a target="_blank">')
+      .attr('href', `/uploads/${data.file.filename}`)
+      .text(`📎 ${data.file.originalname} (${(data.file.size / 1024).toFixed(1)} KB)`);
     $messageBodyDiv = $('<span class="messageBody">').append('Uploaded file: ', fileLink);
   } else {
     $messageBodyDiv = $('<span class="messageBody">').text(data.message);
@@ -155,18 +157,26 @@ $usersBtn.on('click', toggleUsersSidebar);
 
 $uploadBtn.on('click', () => {
   const file = $fileInput[0].files[0];
-  if (!file) return;
+  if (!file || !connected) return;
 
-  const reader = new FileReader();
-  reader.onload = () => {
-    socket.emit('file upload', {
-      username,
-      name: file.name,
-      type: file.type,
-      data: reader.result
-    });
-  };
-  reader.readAsDataURL(file);
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('username', username);
+
+  fetch('/upload', {
+    method: 'POST',
+    body: formData
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        // file message will be broadcast by the server via 'new message'
+        $fileInput.val(''); // reset input
+      } else {
+        alert(data.error || 'Upload failed');
+      }
+    })
+    .catch(() => alert('Upload error'));
 });
 
 // Socket events
@@ -187,9 +197,7 @@ socket.on('user left', (data) => {
 });
 
 socket.on('new message', (data) => {
-  if (data.username !== username) {
-    addChatMessage(data);
-  }
+  addChatMessage(data);
 });
 
 socket.on('typing', (data) => {
@@ -202,8 +210,4 @@ socket.on('stop typing', (data) => {
 
 socket.on('recent messages', (messages) => {
   messages.forEach(msg => addChatMessage(msg, { prepend: false }));
-});
-
-socket.on('file uploaded', (data) => {
-  addChatMessage({ username: data.username, file: { name: data.name, url: data.url } });
 });
