@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Chatroo-m</title>
-  <!-- ... your existing CSS remains unchanged ... -->
+  <!-- Include your CSS separately -->
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body class="theme-blurple">
   <!-- Login Page -->
@@ -54,8 +55,10 @@
   <!-- Scripts -->
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="main.js"></script>
   <script>
+    const socket = io();
+
+    // Theme menu logic
     const themeBtn = document.getElementById('theme-btn');
     const themeMenu = document.getElementById('theme-menu');
     themeBtn.addEventListener('click', () => {
@@ -63,8 +66,7 @@
       themeBtn.setAttribute('aria-expanded', isOpen);
     });
 
-    const themeRadios = document.querySelectorAll('#theme-menu input[name="theme"]');
-    themeRadios.forEach(radio => {
+    document.querySelectorAll('#theme-menu input[name="theme"]').forEach(radio => {
       radio.addEventListener('change', () => {
         if (radio.checked) {
           document.body.className = 'theme-' + radio.value;
@@ -75,7 +77,6 @@
     // File upload logic
     const fileInput = document.getElementById('fileInput');
     const uploadBtn = document.getElementById('uploadBtn');
-    const socket = io();
 
     uploadBtn.addEventListener('click', () => {
       const file = fileInput.files[0];
@@ -83,24 +84,28 @@
 
       const reader = new FileReader();
       reader.onload = function (e) {
-        const fileData = e.target.result;
+        const arrayBuffer = e.target.result;
+        const byteArray = new Uint8Array(arrayBuffer);
+
         socket.emit('file upload', {
           name: file.name,
           type: file.type,
           size: file.size,
-          data: fileData
+          data: Array.from(byteArray)
         });
       };
       reader.readAsArrayBuffer(file);
     });
 
     socket.on('file uploaded', ({ username, file }) => {
-      const fileUrl = URL.createObjectURL(new Blob([new Uint8Array(file.data)], { type: file.type }));
+      const blob = new Blob([new Uint8Array(file.data)], { type: file.type });
+      const fileUrl = URL.createObjectURL(blob);
       const li = document.createElement('li');
       li.className = 'message';
       li.innerHTML = `<span class="username">${username}</span> uploaded <a href="${fileUrl}" download="${file.name}" target="_blank">${file.name}</a>`;
       document.querySelector('.messages').appendChild(li);
     });
   </script>
+  <script src="main.js"></script>
 </body>
 </html>
