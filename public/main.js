@@ -11,7 +11,6 @@ const $usersSidebar = $('#users-sidebar');
 const $usersList = $('#users-list');
 const $usersBtn = $('#users-btn');
 const $fileInput = $('#fileInput');
-const $uploadBtn = $('#uploadBtn');
 
 let username;
 let connected = false;
@@ -158,9 +157,9 @@ $inputMessage.on('input', updateTyping);
 $usersBtn.on('click', toggleUsersSidebar);
 
 // File upload handling using ArrayBuffer
-$uploadBtn.on('click', () => {
+$fileInput.on('change', () => {
   const file = $fileInput[0].files[0];
-  if (!file) return alert('Please choose a file.');
+  if (!file) return;
 
   const reader = new FileReader();
   reader.onload = () => {
