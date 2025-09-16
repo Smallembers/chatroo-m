@@ -8,124 +8,136 @@ const fs = require('fs');
 
 const PORT = process.env.PORT || 3000;
 
-// Setup multer for uploads with 5MB limit
-const upload = multer({
-  dest: path.join(__dirname, 'uploads/'),
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
-});
-
-// Ensure uploads folder exists
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
+// Ensure images folder exists within public
+const imagesDir = path.join(__dirname, 'public/images'); // CHANGED
+if (!fs.existsSync(imagesDir)){
+    fs.mkdirSync(imagesDir, { recursive: true });
 }
 
-// Store last 20 messages (including uploaded files)
-let messages = [];
-const users = new Set();
-
-app.use(express.static(path.join(__dirname, 'public')));
-
-// File upload endpoint
-app.post('/upload', upload.single('file'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded or file too large' });
+// Setup multer for uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, imagesDir); // CHANGED
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + '-' + file.originalname);
   }
-
-  const fileMsg = {
-    username: req.body.username || 'Anonymous',
-    message: '',
-    file: {
-      filename: req.file.filename,
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size
-    }
-  };
-
-  messages.push(fileMsg);
-  if (messages.length > 20) {
-    const removed = messages.shift();
-    if (removed.file) {
-      fs.unlink(path.join(uploadsDir, removed.file.filename), err => {
-        if (err) console.error('Error deleting old file:', err);
-      });
-    }
-  }
-
-  io.emit('new message', fileMsg);
-  res.json({ success: true, file: fileMsg.file });
 });
 
-io.on('connection', (socket) => {
-  let addedUser = false;
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
 
-  // Send last 20 messages to new user
-  socket.emit('recent messages', messages);
+// Store last 50 messages
+let messages = [];
 
-  socket.on('add user', (username) => {
-    if (addedUser) return;
+// --- MIDDLEWARE ---
+// Serve static files from the 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
+// Make the 'images' directory accessible
+app.use('/images', express.static(path.join(__dirname, 'public/images'))); // CHANGED
 
-    socket.username = username;
-    users.add(username);
-    addedUser = true;
 
-    socket.emit('login', {
-      numUsers: users.size,
-      users: Array.from(users)
-    });
+// --- ROUTES ---
+// File upload endpoint
+app.post('/upload', upload.single('file'), (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded or file is too large.' });
+    }
 
-    socket.broadcast.emit('user joined', {
-      username: username,
-      numUsers: users.size,
-      users: Array.from(users)
-    });
-  });
-
-  socket.on('new message', (text) => {
-    if (!addedUser || typeof text !== 'string') return;
-
-    const msg = {
-      username: socket.username,
-      message: text
+    // Create a message object for the file
+    const fileMsg = {
+        username: req.body.username,
+        file: {
+            url: `/images/${req.file.filename}`, // CHANGED
+            name: req.file.originalname
+        }
     };
 
-    messages.push(msg);
-    if (messages.length > 20) {
-      const removed = messages.shift();
-      if (removed.file) {
-        fs.unlink(path.join(uploadsDir, removed.file.filename), err => {
-          if (err) console.error('Error deleting old file:', err);
+    // Store message and manage history
+    messages.push(fileMsg);
+    if (messages.length > 50) {
+        const oldMsg = messages.shift();
+        // If the old message was a file, delete it from the server
+        if (oldMsg.file) {
+            fs.unlink(path.join(imagesDir, path.basename(oldMsg.file.url)), (err) => {
+                if (err) console.error('Error deleting old file:', err);
+            });
+        }
+    }
+
+    // Broadcast the file message to all users
+    io.emit('new message', fileMsg);
+
+    res.json({ success: true });
+});
+
+
+// --- SOCKET.IO LOGIC ---
+const users = new Set();
+
+io.on('connection', (socket) => {
+    let addedUser = false;
+
+    // Send recent messages to new user
+    socket.emit('recent messages', messages);
+
+    socket.on('add user', (username) => {
+        if (addedUser) return;
+        socket.username = username;
+        users.add(username);
+        addedUser = true;
+
+        socket.emit('login', {
+            numUsers: users.size,
+            users: Array.from(users)
         });
-      }
-    }
 
-    io.emit('new message', msg);
-  });
+        socket.broadcast.emit('user joined', {
+            username: socket.username,
+            users: Array.from(users)
+        });
+    });
 
-  socket.on('typing', () => {
-    if (!addedUser) return;
-    socket.broadcast.emit('typing', { username: socket.username });
-  });
+    socket.on('new message', (text) => {
+        const msg = {
+            username: socket.username,
+            message: text
+        };
 
-  socket.on('stop typing', () => {
-    if (!addedUser) return;
-    socket.broadcast.emit('stop typing', { username: socket.username });
-  });
+        messages.push(msg);
+        if (messages.length > 50) {
+            const oldMsg = messages.shift();
+            if (oldMsg.file) {
+                fs.unlink(path.join(imagesDir, path.basename(oldMsg.file.url)), (err) => {
+                    if (err) console.error('Error deleting old file:', err);
+                });
+            }
+        }
+        
+        socket.broadcast.emit('new message', msg);
+    });
 
-  socket.on('disconnect', () => {
-    if (addedUser) {
-      users.delete(socket.username);
+    socket.on('typing', () => {
+        socket.broadcast.emit('typing', { username: socket.username });
+    });
 
-      socket.broadcast.emit('user left', {
-        username: socket.username,
-        numUsers: users.size,
-        users: Array.from(users)
-      });
-    }
-  });
+    socket.on('stop typing', () => {
+        socket.broadcast.emit('stop typing', { username: socket.username });
+    });
+
+    socket.on('disconnect', () => {
+        if (addedUser) {
+            users.delete(socket.username);
+            socket.broadcast.emit('user left', {
+                username: socket.username,
+                users: Array.from(users)
+            });
+        }
+    });
 });
 
 http.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+    console.log(`Server listening on port ${PORT}`);
 });
