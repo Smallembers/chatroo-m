@@ -1,4 +1,4 @@
-A chatroom for school that me and my freinds mess around in 
-Will be adding file uploads and gifs maybe
-host on render or any non-static host
-this is a slightly outdated more consistent version atm
+A chatroom to talk to friends during class
+You can host this yourself on render
+might add gif or embed suport idk
+has file upload support
