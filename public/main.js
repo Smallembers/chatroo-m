@@ -67,18 +67,31 @@ $(function() {
 
     let $messageBodyDiv;
 
-    // Check if the message is a file upload
+    // --- THIS IS THE MODIFIED SECTION ---
     if (data.file) {
-        // Create a link to the uploaded file
+        // Create a link that opens the file in a new tab
         const $fileLink = $('<a>')
             .attr('href', data.file.url)
-            .attr('target', '_blank') // Open in new tab
+            .attr('target', '_blank')
             .text(data.file.name);
-        $messageBodyDiv = $('<span class="messageBody">').append('Uploaded: ', $fileLink);
+
+        // Create a separate link with a download icon that forces download
+        const $downloadIcon = $(`
+            <a href="${data.file.url}" download="${data.file.name}" class="download-link" title="Download">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+            </a>
+        `);
+        
+        $messageBodyDiv = $('<span class="messageBody">').append('Uploaded: ', $fileLink, $downloadIcon);
     } else {
         // It's a regular text message
         $messageBodyDiv = $('<span class="messageBody">').text(data.message);
     }
+    // --- END OF MODIFIED SECTION ---
 
     const typingClass = options.typing ? 'typing' : '';
     const $messageDiv = $('<li class="message"/>')
@@ -143,122 +156,4 @@ $(function() {
   }
 
   const getTypingMessages = (data) => {
-    return $('.typing.message').filter(function(i) {
-      return $(this).data('username') === data.username;
-    });
-  }
-
-  const getUsernameColor = (username) => {
-    let hash = 7;
-    for (let i = 0; i < username.length; i++) {
-      hash = username.charCodeAt(i) + (hash << 5) - hash;
-    }
-    const index = Math.abs(hash % COLORS.length);
-    return COLORS[index];
-  }
-  
-  // --- UPLOAD FILE LOGIC ---
-  const uploadFile = (file) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('username', username);
-
-      fetch('/upload', {
-          method: 'POST',
-          body: formData
-      })
-      .then(response => response.json())
-      .then(data => {
-          if (!data.success) {
-              log('File upload failed.');
-          }
-      })
-      .catch(error => {
-          console.error('Error uploading file:', error);
-          log('Error uploading file.');
-      });
-  };
-
-  // --- KEYBOARD AND CLICK EVENTS ---
-  $window.keydown(event => {
-    if (!(event.ctrlKey || event.metaKey || event.altKey)) {
-      $currentInput.focus();
-    }
-    if (event.which === 13) {
-      if (username) {
-        sendMessage();
-        socket.emit('stop typing');
-        typing = false;
-      } else {
-        setUsername();
-      }
-    }
-  });
-
-  $inputMessage.on('input', () => {
-    updateTyping();
-  });
-
-  $loginPage.click(() => {
-    $currentInput.focus();
-  });
-
-  $fileInput.on('change', function() {
-    const file = this.files[0];
-    if (file && username) {
-        uploadFile(file);
-    }
-    // Reset file input to allow uploading the same file again
-    $(this).val('');
-  });
-
-
-  // --- SOCKET EVENTS ---
-  socket.on('login', (data) => {
-    connected = true;
-    log("Welcome to Socket.IO Chat!");
-    addParticipantsMessage(data);
-  });
-  
-  socket.on('recent messages', (messages) => {
-    messages.forEach(msg => addChatMessage(msg, { prepend: false }));
-  });
-
-  socket.on('new message', (data) => {
-    addChatMessage(data);
-  });
-
-  socket.on('user joined', (data) => {
-    log(`${data.username} joined`);
-    addParticipantsMessage(data);
-  });
-
-  socket.on('user left', (data) => {
-    log(`${data.username} left`);
-    addParticipantsMessage(data);
-    removeChatTyping(data);
-  });
-
-  socket.on('typing', (data) => {
-    addChatTyping(data);
-  });
-
-  socket.on('stop typing', (data) => {
-    removeChatTyping(data);
-  });
-
-  socket.on('disconnect', () => {
-    log('you have been disconnected');
-  });
-
-  socket.on('reconnect', () => {
-    log('you have been reconnected');
-    if (username) {
-      socket.emit('add user', username);
-    }
-  });
-
-  socket.on('reconnect_error', () => {
-    log('attempt to reconnect has failed');
-  });
-});
+    return $('.typing.message').filter(function(
