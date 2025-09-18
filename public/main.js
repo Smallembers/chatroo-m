@@ -23,6 +23,11 @@ $(function() {
   let typing = false;
   let lastTypingTime;
   let $currentInput = $usernameInput.focus();
+  
+  // NEW: Helper function to check for image file extensions
+  const isImage = (filename) => {
+    return /\.(jpeg|jpg|gif|png|webp|bmp|svg)$/i.test(filename);
+  };
 
   const addParticipantsMessage = (data) => {
     let message = '';
@@ -67,18 +72,33 @@ $(function() {
 
     let $messageBodyDiv;
 
-    // Check if the message is a file upload
+    // --- THIS IS THE MODIFIED SECTION ---
     if (data.file) {
-        // Create a link to the uploaded file
-        const $fileLink = $('<a>')
-            .attr('href', data.file.url)
-            .attr('target', '_blank') // Open in new tab
-            .text(data.file.name);
-        $messageBodyDiv = $('<span class="messageBody">').append('Uploaded: ', $fileLink);
+      // Check if the uploaded file is an image
+      if (isImage(data.file.name)) {
+        // If it is, create an <img> tag to embed it
+        const $fileLink = $('<a>').attr('href', data.file.url).attr('target', '_blank').text(data.file.name);
+        const $image = $('<img>').addClass('embedded-image').attr('src', data.file.url);
+        $messageBodyDiv = $('<span class="messageBody">').append($fileLink, '<br>', $image);
+      } else {
+        // If it's not an image, create the standard link with a download icon
+        const $fileLink = $('<a>').attr('href', data.file.url).attr('target', '_blank').text(data.file.name);
+        const $downloadIcon = $(`
+            <a href="${data.file.url}" download="${data.file.name}" class="download-link" title="Download">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+            </a>
+        `);
+        $messageBodyDiv = $('<span class="messageBody">').append('Uploaded: ', $fileLink, $downloadIcon);
+      }
     } else {
-        // It's a regular text message
-        $messageBodyDiv = $('<span class="messageBody">').text(data.message);
+      // It's a regular text message
+      $messageBodyDiv = $('<span class="messageBody">').text(data.message);
     }
+    // --- END OF MODIFIED SECTION ---
 
     const typingClass = options.typing ? 'typing' : '';
     const $messageDiv = $('<li class="message"/>')
@@ -157,7 +177,6 @@ $(function() {
     return COLORS[index];
   }
   
-  // --- UPLOAD FILE LOGIC ---
   const uploadFile = (file) => {
       const formData = new FormData();
       formData.append('file', file);
@@ -179,7 +198,6 @@ $(function() {
       });
   };
 
-  // --- KEYBOARD AND CLICK EVENTS ---
   $window.keydown(event => {
     if (!(event.ctrlKey || event.metaKey || event.altKey)) {
       $currentInput.focus();
@@ -208,12 +226,9 @@ $(function() {
     if (file && username) {
         uploadFile(file);
     }
-    // Reset file input to allow uploading the same file again
     $(this).val('');
   });
 
-
-  // --- SOCKET EVENTS ---
   socket.on('login', (data) => {
     connected = true;
     log("Welcome to Socket.IO Chat!");
