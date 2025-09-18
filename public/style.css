@@ -181,3 +181,30 @@ ul {
 #uploadBtn:hover {
   background-color: #3276d1;
 }
+
+/* --- NEW STYLES ADDED BELOW --- */
+
+/* Styles for the download icon link */
+.download-link {
+  margin-left: 8px;
+  vertical-align: middle;
+  opacity: 0.6;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.download-link:hover {
+  opacity: 1;
+}
+
+.download-link svg {
+  stroke: currentColor; /* Inherits the color of the text */
+}
+
+/* Styles for embedded images */
+.embedded-image {
+  max-width: 100%;
+  max-height: 250px;
+  border-radius: 6px;
+  margin-top: 5px;
+  display: block;
+}
