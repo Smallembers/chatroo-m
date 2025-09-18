@@ -16,6 +16,11 @@ $(function() {
   const $chatPage = $('.chat.page');
   const $fileInput = $('#fileInput');
 
+  // --- ADDED BACK: Sidebar variables ---
+  const $usersSidebar = $('#users-sidebar');
+  const $usersList = $('#users-list');
+  const $usersBtn = $('#users-btn');
+
   const socket = io();
 
   let username;
@@ -24,7 +29,6 @@ $(function() {
   let lastTypingTime;
   let $currentInput = $usernameInput.focus();
   
-  // NEW: Helper function to check for image file extensions
   const isImage = (filename) => {
     return /\.(jpeg|jpg|gif|png|webp|bmp|svg)$/i.test(filename);
   };
@@ -72,16 +76,12 @@ $(function() {
 
     let $messageBodyDiv;
 
-    // --- THIS IS THE MODIFIED SECTION ---
     if (data.file) {
-      // Check if the uploaded file is an image
       if (isImage(data.file.name)) {
-        // If it is, create an <img> tag to embed it
         const $fileLink = $('<a>').attr('href', data.file.url).attr('target', '_blank').text(data.file.name);
         const $image = $('<img>').addClass('embedded-image').attr('src', data.file.url);
         $messageBodyDiv = $('<span class="messageBody">').append($fileLink, '<br>', $image);
       } else {
-        // If it's not an image, create the standard link with a download icon
         const $fileLink = $('<a>').attr('href', data.file.url).attr('target', '_blank').text(data.file.name);
         const $downloadIcon = $(`
             <a href="${data.file.url}" download="${data.file.name}" class="download-link" title="Download">
@@ -95,10 +95,8 @@ $(function() {
         $messageBodyDiv = $('<span class="messageBody">').append('Uploaded: ', $fileLink, $downloadIcon);
       }
     } else {
-      // It's a regular text message
       $messageBodyDiv = $('<span class="messageBody">').text(data.message);
     }
-    // --- END OF MODIFIED SECTION ---
 
     const typingClass = options.typing ? 'typing' : '';
     const $messageDiv = $('<li class="message"/>')
@@ -108,6 +106,23 @@ $(function() {
 
     addMessageElement($messageDiv, options);
   };
+  
+  // --- ADDED BACK: Sidebar functions ---
+  const updateUsersList = (users) => {
+    $usersList.empty();
+    users.forEach(user => {
+        const $li = $('<li>').text(user).css('color', getUsernameColor(user));
+        $usersList.append($li);
+    });
+  };
+
+  const toggleUsersSidebar = () => {
+    const isOpen = $usersSidebar.hasClass('open');
+    $usersSidebar.toggleClass('open');
+    $usersBtn.attr('aria-expanded', !isOpen);
+    $usersBtn.toggleClass('open');
+  };
+  // ---
 
   const addChatTyping = (data) => {
     data.typing = true;
@@ -228,11 +243,16 @@ $(function() {
     }
     $(this).val('');
   });
+  
+  // --- ADDED BACK: Sidebar click event ---
+  $usersBtn.on('click', toggleUsersSidebar);
 
   socket.on('login', (data) => {
     connected = true;
-    log("Welcome to Socket.IO Chat!");
+    log("Welcome to the Chatroom!");
     addParticipantsMessage(data);
+    // --- ADDED BACK: Update user list on login ---
+    updateUsersList(data.users || []);
   });
   
   socket.on('recent messages', (messages) => {
@@ -246,12 +266,16 @@ $(function() {
   socket.on('user joined', (data) => {
     log(`${data.username} joined`);
     addParticipantsMessage(data);
+    // --- ADDED BACK: Update user list on join ---
+    updateUsersList(data.users || []);
   });
 
   socket.on('user left', (data) => {
     log(`${data.username} left`);
     addParticipantsMessage(data);
     removeChatTyping(data);
+    // --- ADDED BACK: Update user list on leave ---
+    updateUsersList(data.users || []);
   });
 
   socket.on('typing', (data) => {
