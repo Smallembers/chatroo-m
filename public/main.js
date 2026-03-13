@@ -16,7 +16,7 @@ $(function() {
   const $chatPage = $('.chat.page');
   const $fileInput = $('#fileInput');
 
-  // --- ADDED BACK: Sidebar variables ---
+  // --- Sidebar variables ---
   const $usersSidebar = $('#users-sidebar');
   const $usersList = $('#users-list');
   const $usersBtn = $('#users-btn');
@@ -107,7 +107,7 @@ $(function() {
     addMessageElement($messageDiv, options);
   };
   
-  // --- ADDED BACK: Sidebar functions ---
+  // --- Sidebar functions ---
   const updateUsersList = (users) => {
     $usersList.empty();
     users.forEach(user => {
@@ -122,12 +122,14 @@ $(function() {
     $usersBtn.attr('aria-expanded', !isOpen);
     $usersBtn.toggleClass('open');
   };
-  // ---
 
   const addChatTyping = (data) => {
-    data.typing = true;
+    // BUG FIX: Prevent duplicate typing indicators for the same user
+    if (getTypingMessages(data).length > 0) return;
+
     data.message = 'is typing';
-    addChatMessage(data);
+    // BUG FIX: Pass the typing state in the options object (second argument)
+    addChatMessage(data, { typing: true });
   }
 
   const removeChatTyping = (data) => {
@@ -244,14 +246,12 @@ $(function() {
     $(this).val('');
   });
   
-  // --- ADDED BACK: Sidebar click event ---
   $usersBtn.on('click', toggleUsersSidebar);
 
   socket.on('login', (data) => {
     connected = true;
     log("Welcome to the Chatroom!");
     addParticipantsMessage(data);
-    // --- ADDED BACK: Update user list on login ---
     updateUsersList(data.users || []);
   });
   
@@ -266,7 +266,6 @@ $(function() {
   socket.on('user joined', (data) => {
     log(`${data.username} joined`);
     addParticipantsMessage(data);
-    // --- ADDED BACK: Update user list on join ---
     updateUsersList(data.users || []);
   });
 
@@ -274,7 +273,6 @@ $(function() {
     log(`${data.username} left`);
     addParticipantsMessage(data);
     removeChatTyping(data);
-    // --- ADDED BACK: Update user list on leave ---
     updateUsersList(data.users || []);
   });
 
